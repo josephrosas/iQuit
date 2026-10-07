@@ -19,8 +19,14 @@ let package = Package(
                 .linkedFramework("AppKit"),
                 .linkedFramework("AppIntents"),
                 .linkedFramework("Carbon"),
-                .linkedFramework("ServiceManagement")
+                .linkedFramework("ServiceManagement"),
+                .linkedFramework("UserNotifications")
             ]
+        ),
+        .testTarget(
+            name: "iQuitTests",
+            dependencies: ["iQuit"],
+            path: "Tests/iQuitTests"
         )
     ]
 )

@@ -9,7 +9,8 @@ clang -c -arch arm64 -mmacosx-version-min=14.0 \
   "$ROOT/Scripts/package-description-shim.s" \
   -o "$ROOT/.build-toolchain/package-description-shim.o"
 
-export SWIFT_EXEC="$ROOT/Scripts/swiftc-manifest-fix"
+# Only the manifest compile needs the shim (see Scripts/test.sh).
+export SWIFT_EXEC_MANIFEST="$ROOT/Scripts/swiftc-manifest-fix"
 
 if [[ ! -f "$ROOT/Resources/AppIcon.icns" || ! -f "$ROOT/Sources/iQuit/Assets/AppLogo.png" ]]; then
   echo "Generating app icon…"
