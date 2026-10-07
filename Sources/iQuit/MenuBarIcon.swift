@@ -1,11 +1,28 @@
 import AppKit
 
 enum MenuBarIcon {
-    static func image() -> NSImage {
-        let image = loadedLogo() ?? fallback()
-        let side = max(18, NSStatusBar.system.thickness - 2)
-        image.size = NSSize(width: side, height: side)
-        image.isTemplate = false
+    static func image(style: MenuBarIconStyle) -> NSImage {
+        switch style {
+        case .logo:
+            let image = loadedLogo() ?? fallback()
+            let side = max(18, NSStatusBar.system.thickness - 2)
+            image.size = NSSize(width: side, height: side)
+            image.isTemplate = false
+            return image
+        case .template:
+            return templateImage()
+        }
+    }
+
+    private static func templateImage() -> NSImage {
+        let configuration = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
+        if let symbol = NSImage(systemSymbolName: "power", accessibilityDescription: "iQuit")?
+            .withSymbolConfiguration(configuration) {
+            symbol.isTemplate = true
+            return symbol
+        }
+        let image = fallback()
+        image.isTemplate = true
         return image
     }
 

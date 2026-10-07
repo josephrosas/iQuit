@@ -6,6 +6,8 @@ final class AutoQuitService {
     private var timer: Timer?
     var onTick: (() -> Void)?
 
+    var isRunning: Bool { timer != nil }
+
     func start() {
         stop()
         let timer = Timer(timeInterval: 20, repeats: true) { [weak self] _ in

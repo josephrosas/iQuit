@@ -14,4 +14,17 @@ clang -c -arch arm64 -mmacosx-version-min=14.0 \
 export SWIFT_EXEC_MANIFEST="$ROOT/Scripts/swiftc-manifest-fix"
 
 # Command Line Tools ship Swift Testing but not XCTest.
-swift test --disable-xctest "$@"
+# The CLT macro plugin server occasionally fails to come up on the first compile
+# ("plugin for module 'TestingMacros' not found"); retry once when that happens.
+LOG="$(mktemp -t iquit-test)"
+trap 'rm -f "$LOG"' EXIT
+for attempt in 1 2; do
+  if swift test --disable-xctest "$@" 2>&1 | tee "$LOG"; then
+    exit 0
+  fi
+  if ! grep -q "plugin for module 'TestingMacros' not found" "$LOG"; then
+    exit 1
+  fi
+  echo "Macro plugin was unavailable; retrying…" >&2
+done
+exit 1

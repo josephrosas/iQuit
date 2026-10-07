@@ -1,5 +1,4 @@
 import AppKit
-import SwiftUI
 
 enum AppRuntime {
     @MainActor
@@ -10,23 +9,19 @@ enum AppRuntime {
 
 @main
 enum iQuitMain {
+    @MainActor
+    private static var delegate: AppDelegate?
+
     static func main() {
         if CLI.handleIfNeeded() {
             return
         }
-        iQuitApp.main()
-    }
-}
-
-struct iQuitApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-
-    var body: some Scene {
-        Settings {
-            SettingsView()
-                .environment(AppRuntime.model)
-                .tint(iQuitTheme.accent)
-                .preferredColorScheme(AppRuntime.model.appearance.colorScheme)
+        MainActor.assumeIsolated {
+            let app = NSApplication.shared
+            let delegate = AppDelegate()
+            self.delegate = delegate
+            app.delegate = delegate
+            app.run()
         }
     }
 }

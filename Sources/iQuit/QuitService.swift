@@ -27,20 +27,18 @@ final class QuitService {
         if app.processIdentifier == ProcessInfo.processInfo.processIdentifier {
             return false
         }
-        if let bundleID = app.bundleIdentifier, ProtectedApps.bundleIDs.contains(bundleID) {
-            return false
-        }
-        return true
+        return !ProcessPolicy.isProtected(bundleID: app.bundleIdentifier, localizedName: app.localizedName)
     }
 
-    func isExcluded(
-        _ listed: ListedApp,
-        neverQuit: Set<String>,
-        neverQuitMusic: Bool
-    ) -> Bool {
-        if listed.isProtected { return true }
-        if let bundleID = listed.bundleID, neverQuit.contains(bundleID) { return true }
-        if neverQuitMusic, listed.isMusic { return true }
-        return false
+    func reopen(_ urls: [URL]) {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        for url in urls {
+            NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+        }
+    }
+
+    func revealInFinder(_ url: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 }

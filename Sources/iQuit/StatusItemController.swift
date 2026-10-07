@@ -6,8 +6,8 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     private let model: AppModel
     private let statusItem: NSStatusItem
     private let popover = NSPopover()
-    private var localMonitor: Any?
-    private var globalMonitor: Any?
+    private var flagsMonitor: Any?
+    private var keyMonitor: Any?
 
     init(model: AppModel) {
         self.model = model
@@ -15,14 +15,13 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         super.init()
 
         if let button = statusItem.button {
-            button.image = MenuBarIcon.image()
             button.imageScaling = .scaleProportionallyDown
-            button.imagePosition = .imageOnly
             button.toolTip = "iQuit"
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.target = self
             button.action = #selector(handleClick(_:))
             button.setAccessibilityLabel("iQuit")
+            button.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         }
 
         let root = PopoverView()
@@ -30,10 +29,15 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             .tint(iQuitTheme.accent)
             .preferredColorScheme(model.appearance.colorScheme)
         popover.contentViewController = NSHostingController(rootView: root)
-        popover.contentSize = NSSize(width: 340, height: 460)
+        popover.contentSize = NSSize(width: 360, height: 460)
         popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
+
+        model.onRequestClose = { [weak self] in
+            self?.popover.performClose(nil)
+        }
+        observeMenuBarState()
     }
 
     func togglePopover() {
@@ -50,14 +54,43 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 
     func popoverWillShow(_ notification: Notification) {
         model.startLiveRefresh()
-        startOptionMonitors()
+        startMonitors()
     }
 
     func popoverDidClose(_ notification: Notification) {
         model.stopLiveRefresh()
-        stopOptionMonitors()
+        stopMonitors()
         model.setOptionHeld(false)
     }
+
+    // MARK: Menu bar button
+
+    private func observeMenuBarState() {
+        withObservationTracking {
+            updateButton()
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.observeMenuBarState()
+            }
+        }
+    }
+
+    private func updateButton() {
+        guard let button = statusItem.button else { return }
+        let style = model.menuBarIconStyle
+        let showCount = model.showMenuBarCount
+        let count = model.regularQuitableCount
+        button.image = MenuBarIcon.image(style: style)
+        if showCount {
+            button.title = " \(count)"
+            button.imagePosition = .imageLeading
+        } else {
+            button.title = ""
+            button.imagePosition = .imageOnly
+        }
+    }
+
+    // MARK: Clicks and menu
 
     @objc private func handleClick(_ sender: NSStatusBarButton) {
         if NSApp.currentEvent?.type == .rightMouseUp {
@@ -101,25 +134,30 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         NSApp.terminate(nil)
     }
 
-    private func startOptionMonitors() {
-        stopOptionMonitors()
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+    // MARK: Event monitors (popover is key while shown, so local monitors suffice)
+
+    private func startMonitors() {
+        stopMonitors()
+        flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             self?.model.setOptionHeld(event.modifierFlags.contains(.option))
             return event
         }
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            self?.model.setOptionHeld(event.modifierFlags.contains(.option))
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.popover.isShown,
+                  event.window === self.popover.contentViewController?.view.window
+            else { return event }
+            return self.model.handleKey(event) ? nil : event
         }
     }
 
-    private func stopOptionMonitors() {
-        if let localMonitor {
-            NSEvent.removeMonitor(localMonitor)
-            self.localMonitor = nil
+    private func stopMonitors() {
+        if let flagsMonitor {
+            NSEvent.removeMonitor(flagsMonitor)
+            self.flagsMonitor = nil
         }
-        if let globalMonitor {
-            NSEvent.removeMonitor(globalMonitor)
-            self.globalMonitor = nil
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+            self.keyMonitor = nil
         }
     }
 }

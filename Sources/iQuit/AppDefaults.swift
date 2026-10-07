@@ -17,6 +17,8 @@ enum AppDefaults {
     static let showBackgroundApps = "iquit.showBackgroundApps"
     static let autoQuitEnabled = "iquit.autoQuitEnabled"
     static let autoQuitMinutes = "iquit.autoQuitMinutes"
+    static let autoQuitSkipVisibleWindows = "iquit.autoQuitSkipVisibleWindows"
+    static let notifyOnAutoQuit = "iquit.notifyOnAutoQuit"
     static let neverQuitMusic = "iquit.neverQuitMusic"
     static let neverQuitBundleIDs = "iquit.neverQuitBundleIDs"
     static let quitAllKeyCode = "iquit.quitAllKeyCode"
@@ -24,6 +26,8 @@ enum AppDefaults {
     static let forceQuitAllKeyCode = "iquit.forceQuitAllKeyCode"
     static let forceQuitAllModifiers = "iquit.forceQuitAllModifiers"
     static let sort = "iquit.sort"
+    static let menuBarIconStyle = "iquit.menuBarIconStyle"
+    static let showMenuBarCount = "iquit.showMenuBarCount"
 
     static func bool(forKey key: String, default defaultValue: Bool) -> Bool {
         let defaults = UserDefaults.standard
@@ -47,7 +51,10 @@ enum ProtectedApps {
         "com.apple.coreservices.uiagent",
         "com.apple.ControlCenter",
         "com.apple.wallpaper.agent",
-        "com.apple.dock.extra"
+        "com.apple.dock.extra",
+        "com.apple.Siri",
+        "com.apple.TextInputMenuAgent",
+        "com.apple.ScreenSaver.Engine"
     ]
 
     static let musicBundleIDs: Set<String> = [
@@ -86,6 +93,37 @@ enum AppSort: String, CaseIterable, Identifiable {
     static func fromStorage(_ value: String?) -> AppSort {
         AppSort(rawValue: value ?? "") ?? .name
     }
+
+    /// Stable ordering: the chosen metric descending (unknown CPU last), ties by name.
+    func sorted(_ apps: [ListedApp]) -> [ListedApp] {
+        apps.sorted { lhs, rhs in
+            switch self {
+            case .name:
+                return Self.nameAscending(lhs, rhs)
+            case .cpu:
+                switch (lhs.cpuPercent, rhs.cpuPercent) {
+                case (nil, nil):
+                    return Self.nameAscending(lhs, rhs)
+                case (nil, _):
+                    return false
+                case (_, nil):
+                    return true
+                case let (left?, right?):
+                    if left != right { return left > right }
+                    return Self.nameAscending(lhs, rhs)
+                }
+            case .memory:
+                if lhs.memoryBytes != rhs.memoryBytes { return lhs.memoryBytes > rhs.memoryBytes }
+                return Self.nameAscending(lhs, rhs)
+            }
+        }
+    }
+
+    private static func nameAscending(_ lhs: ListedApp, _ rhs: ListedApp) -> Bool {
+        let order = lhs.name.localizedStandardCompare(rhs.name)
+        if order != .orderedSame { return order == .orderedAscending }
+        return lhs.key < rhs.key
+    }
 }
 
 enum AutoQuitDuration: Int, CaseIterable, Identifiable {
@@ -109,5 +147,23 @@ enum AutoQuitDuration: Int, CaseIterable, Identifiable {
 
     static func fromStorage(_ value: Int) -> AutoQuitDuration {
         AutoQuitDuration(rawValue: value) ?? .minutes15
+    }
+}
+
+enum MenuBarIconStyle: String, CaseIterable, Identifiable {
+    case logo
+    case template
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .logo: return "Color logo"
+        case .template: return "Monochrome"
+        }
+    }
+
+    static func fromStorage(_ value: String?) -> MenuBarIconStyle {
+        MenuBarIconStyle(rawValue: value ?? "") ?? .logo
     }
 }

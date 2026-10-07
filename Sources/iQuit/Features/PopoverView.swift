@@ -3,9 +3,9 @@ import SwiftUI
 
 struct PopoverView: View {
     @Environment(AppModel.self) private var appModel
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
-        @Bindable var appModel = appModel
         VStack(spacing: 0) {
             header
             if appModel.forceMode {
@@ -13,10 +13,14 @@ struct PopoverView: View {
             }
             searchRow
             Divider()
-            if shown.isEmpty {
+            if appModel.shownApps.isEmpty {
                 emptyState
             } else {
                 appList
+            }
+            if let batch = appModel.recentBatch {
+                Divider()
+                reopenToast(batch)
             }
             Divider()
             footer
@@ -25,10 +29,10 @@ struct PopoverView: View {
         .frame(minHeight: 320, maxHeight: 520)
         .background(iQuitTheme.page)
         .preferredColorScheme(appModel.appearance.colorScheme)
-    }
-
-    private var shown: [ListedApp] {
-        appModel.shownApps
+        .onAppear { searchFocused = true }
+        .onChange(of: appModel.popoverGeneration) { _, _ in
+            searchFocused = true
+        }
     }
 
     private var header: some View {
@@ -81,7 +85,7 @@ struct PopoverView: View {
     }
 
     private var subtitle: String {
-        let count = shown.count
+        let count = appModel.shownApps.count
         if count == 0 { return "Nothing to quit" }
         return count == 1 ? "1 app" : "\(count) apps"
     }
@@ -103,6 +107,7 @@ struct PopoverView: View {
                 .foregroundStyle(iQuitTheme.muted)
             TextField("Search apps", text: $appModel.searchText)
                 .textFieldStyle(.plain)
+                .focused($searchFocused)
             if !appModel.searchText.isEmpty {
                 Button {
                     appModel.searchText = ""
@@ -141,33 +146,57 @@ struct PopoverView: View {
     }
 
     private var appList: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                if !appModel.shownQuitableApps.isEmpty {
-                    selectAllRow
-                }
-                if !regularApps.isEmpty {
-                    ForEach(regularApps) { app in
-                        AppRowView(app: app)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    if !appModel.shownQuitableApps.isEmpty {
+                        selectAllRow
                     }
-                }
-                if appModel.showBackgroundApps, !backgroundApps.isEmpty {
-                    HStack {
-                        Text("Background")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(iQuitTheme.muted)
-                            .textCase(.uppercase)
-                        Spacer()
+                    ForEach(appModel.regularApps) { app in
+                        row(app)
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.top, 10)
-                    .padding(.bottom, 4)
-                    ForEach(backgroundApps) { app in
-                        AppRowView(app: app)
+                    if appModel.showBackgroundApps, !appModel.backgroundApps.isEmpty {
+                        HStack {
+                            Text("Background")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(iQuitTheme.muted)
+                                .textCase(.uppercase)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.top, 10)
+                        .padding(.bottom, 4)
+                        ForEach(appModel.backgroundApps) { app in
+                            row(app)
+                        }
                     }
                 }
             }
+            .onChange(of: appModel.focusedKey) { _, key in
+                guard let key else { return }
+                withAnimation(.easeOut(duration: 0.12)) {
+                    proxy.scrollTo(key, anchor: .center)
+                }
+            }
         }
+    }
+
+    private func row(_ app: ListedApp) -> some View {
+        let now = appModel.lastRefresh
+        return AppRowView(
+            app: app,
+            icon: appModel.icon(for: app),
+            isSelected: appModel.selectedKeys.contains(app.id),
+            isFocused: appModel.focusedKey == app.id,
+            isHovered: appModel.hoveredKey == app.id,
+            exclusionLabel: appModel.exclusionLabel(for: app),
+            quitState: appModel.quitState(for: app),
+            autoQuitRemaining: appModel.autoQuitRemaining(for: app, now: now),
+            showMetrics: appModel.showMetrics,
+            forceMode: appModel.forceMode
+        )
+        .equatable()
+        .id(app.id)
     }
 
     private var selectAllRow: some View {
@@ -180,6 +209,7 @@ struct PopoverView: View {
                     .font(.system(size: 14, weight: .medium))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(appModel.selectAllState == .all ? "Deselect all" : "Select all")
             Text(appModel.selectAllState == .all ? "Deselect all" : "Select all")
                 .font(.caption)
                 .foregroundStyle(iQuitTheme.muted)
@@ -198,46 +228,75 @@ struct PopoverView: View {
         }
     }
 
-    private var regularApps: [ListedApp] {
-        appModel.sorted(shown.filter { !$0.isBackground })
-    }
-
-    private var backgroundApps: [ListedApp] {
-        appModel.sorted(shown.filter(\.isBackground))
+    private func reopenToast(_ batch: QuitBatch) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(iQuitTheme.accent)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(batch.title)
+                    .font(.caption.weight(.semibold))
+                Text(batch.names.joined(separator: ", "))
+                    .font(.caption2)
+                    .foregroundStyle(iQuitTheme.muted)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            if !batch.bundleURLs.isEmpty {
+                Button("Reopen") {
+                    appModel.reopenRecentBatch()
+                }
+                .controlSize(.small)
+            }
+            Button {
+                appModel.dismissRecentBatch()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(iQuitTheme.muted)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(iQuitTheme.fill)
     }
 
     private var footer: some View {
-        HStack(spacing: 8) {
-            Toggle("Show background apps", isOn: Bindable(appModel).showBackgroundApps)
-                .toggleStyle(.checkbox)
-                .font(.caption)
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Toggle("Show background apps", isOn: Bindable(appModel).showBackgroundApps)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
 
-            Spacer()
+                Spacer()
 
-            if !appModel.selectedApps.isEmpty {
-                Button(appModel.quitSelectedTitle) {
-                    appModel.quitSelected()
+                if !appModel.selectedApps.isEmpty {
+                    Button(appModel.quitSelectedTitle) {
+                        appModel.quitSelected()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .tint(appModel.forceMode ? iQuitTheme.danger : iQuitTheme.accent)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .tint(appModel.forceMode ? iQuitTheme.danger : iQuitTheme.accent)
-            }
 
-            Button {
-                SettingsWindowController.shared.show()
-            } label: {
-                Image(systemName: "gearshape")
+                Button {
+                    SettingsWindowController.shared.show()
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .buttonStyle(.plain)
+                .help("Preferences")
             }
-            .buttonStyle(.plain)
-            .help("Preferences")
+            HStack {
+                Text("↑↓ move · ↩ quit · space select · ⌘⌫ quit selected · ⌥ force")
+                    .font(.system(size: 10))
+                    .foregroundStyle(iQuitTheme.muted)
+                    .lineLimit(1)
+                Spacer()
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
     }
-}
-
-enum SelectAllState {
-    case none
-    case some
-    case all
 }

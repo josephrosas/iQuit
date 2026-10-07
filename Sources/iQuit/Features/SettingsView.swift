@@ -35,6 +35,10 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(!appModel.autoQuitEnabled)
+                    Toggle("Skip apps with windows on screen", isOn: $appModel.autoQuitSkipVisibleWindows)
+                        .disabled(!appModel.autoQuitEnabled)
+                    Toggle("Notify me when apps are auto-quit", isOn: $appModel.notifyOnAutoQuit)
+                        .disabled(!appModel.autoQuitEnabled)
                     Toggle("Never quit music apps", isOn: $appModel.neverQuitMusic)
 
                     if appModel.neverQuitBundleIDs.isEmpty {
@@ -59,7 +63,7 @@ struct SettingsView: View {
                         }
                     }
 
-                    Text("Auto Quit only closes regular apps that have not been frontmost for the chosen time. The frontmost app, music apps (if enabled), and Never Quit apps are skipped.")
+                    Text("Auto Quit only closes regular apps that have not been frontmost for the chosen time. The frontmost app, music apps (if enabled), Never Quit apps, and apps that refuse to quit (for example with unsaved changes) are skipped until you use them again. The popover shows a countdown on each app it applies to.")
                         .font(.caption)
                         .foregroundStyle(iQuitTheme.muted)
                 }
@@ -72,6 +76,22 @@ struct SettingsView: View {
                         appModel.forceQuitAllHotkey = $0
                     }
                     Text("Shortcuts work even when the popover is closed. Pick combinations you will not press by accident.")
+                        .font(.caption)
+                        .foregroundStyle(iQuitTheme.muted)
+                    Text("In the popover: type to search, ↑↓ to move, ↩ to quit, Space to select, ⌘A to select all, ⌘⌫ to quit selected, Esc to clear or close. Hold ⌥ for Force Quit.")
+                        .font(.caption)
+                        .foregroundStyle(iQuitTheme.muted)
+                }
+
+                group("Menu Bar") {
+                    Picker("Icon", selection: $appModel.menuBarIconStyle) {
+                        ForEach(MenuBarIconStyle.allCases) { style in
+                            Text(style.title).tag(style)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Toggle("Show number of running apps", isOn: $appModel.showMenuBarCount)
+                    Text("Monochrome follows the menu bar's light or dark style. The count includes regular apps iQuit is allowed to quit.")
                         .font(.caption)
                         .foregroundStyle(iQuitTheme.muted)
                 }
@@ -107,7 +127,7 @@ struct SettingsView: View {
                     Button("Send Feedback…") {
                         NSWorkspace.shared.open(AppIdentity.feedback)
                     }
-                    Text("iQuit will not quit Finder, Dock, or other protected system processes. Some background apps may relaunch themselves. Force quit skips save prompts.")
+                    Text("iQuit will not quit Finder, Dock, or other protected system processes, and hides Apple system services from the background list. Helper processes are folded into their parent app's CPU and memory. Some background apps may relaunch themselves. Force quit skips save prompts.")
                         .font(.caption)
                         .foregroundStyle(iQuitTheme.muted)
                 }
