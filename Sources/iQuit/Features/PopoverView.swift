@@ -1,0 +1,243 @@
+import AppKit
+import SwiftUI
+
+struct PopoverView: View {
+    @Environment(AppModel.self) private var appModel
+
+    var body: some View {
+        @Bindable var appModel = appModel
+        VStack(spacing: 0) {
+            header
+            if appModel.forceMode {
+                forceBanner
+            }
+            searchRow
+            Divider()
+            if shown.isEmpty {
+                emptyState
+            } else {
+                appList
+            }
+            Divider()
+            footer
+        }
+        .frame(width: 360)
+        .frame(minHeight: 320, maxHeight: 520)
+        .background(iQuitTheme.page)
+        .preferredColorScheme(appModel.appearance.colorScheme)
+    }
+
+    private var shown: [ListedApp] {
+        appModel.shownApps
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                BrandLogo(size: 28)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("iQuit")
+                        .font(.headline)
+                    if !appModel.forceMode, !appModel.confirmingQuitAll {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(iQuitTheme.muted)
+                    }
+                }
+                Spacer(minLength: 8)
+                if !appModel.confirmingQuitAll {
+                    Button(appModel.quitAllTitle) {
+                        appModel.beginQuitAllConfirmation()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(appModel.forceMode ? iQuitTheme.danger : iQuitTheme.accent)
+                    .disabled(appModel.shownQuitableApps.isEmpty)
+                }
+            }
+            if appModel.confirmingQuitAll {
+                confirmation
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    private var confirmation: some View {
+        HStack(spacing: 8) {
+            Text(appModel.quitAllConfirmTitle)
+                .font(.callout.weight(.semibold))
+            Spacer(minLength: 8)
+            Button("Cancel") {
+                appModel.cancelQuitAllConfirmation()
+            }
+            .controlSize(.small)
+            Button(appModel.forceMode ? "Force Quit" : "Quit") {
+                appModel.confirmQuitAll()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .tint(appModel.forceMode ? iQuitTheme.danger : iQuitTheme.accent)
+        }
+    }
+
+    private var subtitle: String {
+        let count = shown.count
+        if count == 0 { return "Nothing to quit" }
+        return count == 1 ? "1 app" : "\(count) apps"
+    }
+
+    private var forceBanner: some View {
+        Text("Force Quit — unsaved work will not be saved.")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .background(iQuitTheme.danger)
+    }
+
+    private var searchRow: some View {
+        @Bindable var appModel = appModel
+        return HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(iQuitTheme.muted)
+            TextField("Search apps", text: $appModel.searchText)
+                .textFieldStyle(.plain)
+            if !appModel.searchText.isEmpty {
+                Button {
+                    appModel.searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(iQuitTheme.muted)
+                }
+                .buttonStyle(.plain)
+            }
+            Picker("Sort", selection: $appModel.sort) {
+                ForEach(AppSort.allCases) { option in
+                    Text(option.title).tag(option)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .fixedSize()
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 10)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: appModel.searchText.isEmpty ? "checkmark.circle" : "magnifyingglass")
+                .font(.system(size: 28, weight: .regular))
+                .foregroundStyle(iQuitTheme.accent)
+            Text(appModel.searchText.isEmpty ? "All clear" : "No matches")
+                .font(.headline)
+            Text(appModel.searchText.isEmpty ? "No running apps to quit." : "Nothing matches that search.")
+                .font(.caption)
+                .foregroundStyle(iQuitTheme.muted)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(24)
+    }
+
+    private var appList: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                if !appModel.shownQuitableApps.isEmpty {
+                    selectAllRow
+                }
+                if !regularApps.isEmpty {
+                    ForEach(regularApps) { app in
+                        AppRowView(app: app)
+                    }
+                }
+                if appModel.showBackgroundApps, !backgroundApps.isEmpty {
+                    HStack {
+                        Text("Background")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(iQuitTheme.muted)
+                            .textCase(.uppercase)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+                    .padding(.bottom, 4)
+                    ForEach(backgroundApps) { app in
+                        AppRowView(app: app)
+                    }
+                }
+            }
+        }
+    }
+
+    private var selectAllRow: some View {
+        HStack(spacing: 8) {
+            Button {
+                appModel.toggleSelectAll()
+            } label: {
+                Image(systemName: selectSymbol)
+                    .foregroundStyle(appModel.selectAllState == .none ? iQuitTheme.muted : iQuitTheme.accent)
+                    .font(.system(size: 14, weight: .medium))
+            }
+            .buttonStyle(.plain)
+            Text(appModel.selectAllState == .all ? "Deselect all" : "Select all")
+                .font(.caption)
+                .foregroundStyle(iQuitTheme.muted)
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 8)
+        .padding(.bottom, 2)
+    }
+
+    private var selectSymbol: String {
+        switch appModel.selectAllState {
+        case .all: return "checkmark.square.fill"
+        case .some: return "minus.square.fill"
+        case .none: return "square"
+        }
+    }
+
+    private var regularApps: [ListedApp] {
+        appModel.sorted(shown.filter { !$0.isBackground })
+    }
+
+    private var backgroundApps: [ListedApp] {
+        appModel.sorted(shown.filter(\.isBackground))
+    }
+
+    private var footer: some View {
+        HStack(spacing: 8) {
+            Toggle("Show background apps", isOn: Bindable(appModel).showBackgroundApps)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+
+            Spacer()
+
+            if !appModel.selectedApps.isEmpty {
+                Button(appModel.quitSelectedTitle) {
+                    appModel.quitSelected()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tint(appModel.forceMode ? iQuitTheme.danger : iQuitTheme.accent)
+            }
+
+            Button {
+                SettingsWindowController.shared.show()
+            } label: {
+                Image(systemName: "gearshape")
+            }
+            .buttonStyle(.plain)
+            .help("Preferences")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+}
+
+enum SelectAllState {
+    case none
+    case some
+    case all
+}
