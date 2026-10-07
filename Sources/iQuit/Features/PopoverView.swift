@@ -280,13 +280,24 @@ struct PopoverView: View {
                     .tint(appModel.forceMode ? iQuitTheme.danger : iQuitTheme.accent)
                 }
 
-                Button {
-                    SettingsWindowController.shared.show()
+                Menu {
+                    Button("Preferences…") {
+                        SettingsWindowController.shared.show()
+                    }
+                    Button("About iQuit") {
+                        AboutWindowController.shared.show()
+                    }
+                    Divider()
+                    Button("Quit iQuit") {
+                        NSApp.terminate(nil)
+                    }
                 } label: {
                     Image(systemName: "gearshape")
                 }
-                .buttonStyle(.plain)
-                .help("Preferences")
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Preferences, About, Quit iQuit")
             }
             HStack {
                 Text("↑↓ move · ↩ quit · space select · ⌘⌫ quit selected · ⌥ force")

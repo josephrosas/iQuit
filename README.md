@@ -24,7 +24,7 @@ Run the tests with `Scripts/test.sh` (wraps `swift test --disable-xctest`, which
 - A row shows **Quitting…** while an app is closing. If it is still running after a few seconds (an unsaved document, for example) the row switches to **Still running** with a **Force** button.
 - After a quit finishes, a **Reopen** bar appears for a moment so you can undo it.
 - Use the ⋯ menu on a row for **Never Quit**, **Quit & Reopen**, or **Reveal in Finder**. Toggle background apps from the footer.
-- Preferences live under **Preferences…** (`⌘,` from the right-click menu): launch at login, auto-quit, shortcuts, menu bar icon, and appearance.
+- The ⚙ menu in the popover footer (or the right-click menu on the icon) has **Preferences…**, **About iQuit**, and **Quit iQuit**. Preferences cover launch at login, auto-quit, shortcuts, menu bar icon, and appearance.
 
 ### Keyboard
 
@@ -38,6 +38,7 @@ The search field has focus as soon as the popover opens; just start typing to fi
 | ⌘A | Select all |
 | ⌘⌫ | Quit selected apps, or the focused app if nothing is selected |
 | Esc | Cancel Quit All, clear the search, or close the popover |
+| ⌘Q | Quit iQuit itself |
 
 ### Auto Quit
 

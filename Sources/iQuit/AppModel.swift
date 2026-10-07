@@ -493,6 +493,10 @@ final class AppModel {
                 toggleSelectAll()
                 return true
             }
+            if command, chars == "q" {
+                NSApp.terminate(nil)
+                return true
+            }
             return false
         }
     }
